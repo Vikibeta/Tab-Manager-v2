@@ -1,14 +1,17 @@
 import React from 'react'
 import { inject, observer } from 'mobx-react'
+import { DragDropContext } from 'react-dnd'
+import HTML5Backend from 'react-dnd-html5-backend'
 import Window from './Window'
 import DragPreview from './DragPreview'
 import ShadowScrollbars from '../libs/ShadowScrollbars'
 
 const width = '800px'
 
+@DragDropContext(HTML5Backend)
 @inject('windowStore')
 @observer
-export default class App extends React.Component {
+export default class WindowList extends React.Component {
   resize = () => {
     const bottom = Math.max(
       ...Object.values(this.refs).map(

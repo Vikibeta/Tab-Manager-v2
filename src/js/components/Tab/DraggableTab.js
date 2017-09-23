@@ -1,58 +1,91 @@
 import React from 'react'
+import PropTypes from 'prop-types'
+import { findDOMNode } from 'react-dom'
 import { inject, observer } from 'mobx-react'
-import { grey } from 'material-ui/colors'
 import Tab from './Tab'
+import { DragSource, DropTarget } from 'react-dnd'
+import { grey } from 'material-ui/colors'
 
-@inject('searchStore')
+export const ItemTypes = {
+  TAB: 'tab'
+}
+
+export const tabSource = {
+  beginDrag (props) {
+    const {
+      dragStore: { dragStart },
+      tabStore: { sources: tabs }
+    } = props
+    dragStart(props)
+    return { tabs }
+  }
+}
+
+export const tabTarget = {
+  hover (props, monitor, component) {
+    const hoverBoundingRect = findDOMNode(component).getBoundingClientRect()
+    const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2
+    const clientOffset = monitor.getClientOffset()
+    const hoverClientY = clientOffset.y - hoverBoundingRect.top
+    const before = hoverClientY < hoverMiddleY
+    const { id, dragStore: { setDropTarget } } = props
+    setDropTarget(id, before)
+  },
+  drop (props, monitor, component) {
+    const { dragStore: { drop } } = props
+    drop(props)
+  }
+}
+
+@inject('windowStore')
 @inject('tabStore')
 @inject('dragStore')
 @observer
-export default class DraggableTab extends React.Component {
-  onDragStart = (e) => {
-    this.props.dragStore.dragStart(this.props)
-    e.dataTransfer.setDragImage(this.props.dragPreview(), 0, 0)
+@DragSource(ItemTypes.TAB, tabSource, (connect, monitor) => {
+  return {
+    connectDragSource: connect.dragSource(),
+    connectDragPreview: connect.dragPreview(),
+    isDragging: monitor.isDragging()
+  }
+})
+@DropTarget(ItemTypes.TAB, tabTarget, (connect, monitor) => {
+  return {
+    connectDropTarget: connect.dropTarget(),
+    isOver: monitor.isOver()
+  }
+})
+export default class DndTab extends React.Component {
+  static propTypes = {
+    connectDragSource: PropTypes.func.isRequired,
+    connectDropTarget: PropTypes.func.isRequired,
+    isOver: PropTypes.bool.isRequired,
+    isDragging: PropTypes.bool.isRequired
   }
 
-  onDragEnd = () => {
-    this.props.dragStore.dragEnd()
-  }
-
-  onDragOver = (e) => {
-    e.nativeEvent.preventDefault()
-    const { id, dragStore: { setDropTarget } } = this.props
-    const before = e.nativeEvent.offsetY < this.node.clientHeight / 2
-    setDropTarget(id, before)
-  }
-
-  onDrop = () => {
-    const { dragStore: { drop } } = this.props
-    drop(this.props)
+  componentDidMount () {
+    this.props.connectDragPreview(this.props.dragPreview(), {
+      captureDraggingState: true
+    })
   }
 
   render () {
-    const { id, dragStore: { targetId, before } } = this.props
+    const {
+      connectDragSource, connectDropTarget, isOver,
+      dragStore: { before }
+    } = this.props
     const style = {
       borderBottom: `1px solid ${grey[200]}`,
       borderTop: '1px solid transparent',
       margin: '-1px 0'
     }
-    if (targetId === id) {
+    if (isOver) {
       const border = 'border' + (before ? 'Top' : 'Bottom')
       style[border] = '1px black solid'
     }
-    const { onDragStart, onDragEnd, onDragOver, onDrop } = this
-    return (
-      <div
-        draggable
-        style={{
-          ...style,
-          ...this.props.style
-        }}
-        ref={(el) => { this.node = el || this.node }}
-        {...{ onDragStart, onDragEnd, onDragOver, onDrop }}
-      >
+    return connectDragSource(connectDropTarget(
+      <div style={style}>
         <Tab {...this.props} />
       </div>
-    )
+    ))
   }
 }
